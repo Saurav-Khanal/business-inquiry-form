@@ -9,6 +9,9 @@ app.use(cors());
 require("dotenv").config();
 const mongoose = require("mongoose");
 const bcrypt = require("bcrypt");
+const jwt=require("jsonwebtoken");
+const cookieParser=require("cookie-parser");
+app.use(cookieParser());
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
@@ -77,23 +80,37 @@ app.post("/login", async (req, res) => {
         message: "Email and password are required",
       });
     }
-    const user = await User.find({ email });
+    const user = await User.findOne({ email });
     if (!user) {
       return res.status(401).json({
         message: "Invalid email or password",
       });
     }
-    const isPassword = bcrypt.compare(password, user.password);
+    const isPassword = await bcrypt.compare(password, user.password);
     if (!isPassword) {
       return res.status(401).json({
         message: "Invalid email or password",
       });
     }
+
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "15m",
+    });
+
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 15 * 60 * 1000,
+      path: "/",
+    });
+
     res.status(200).json({
       message: "Login successfull",
       user: {
         name: user.name,
         email: user.email,
+        token:token
       },
     });
   } catch (err) {
@@ -101,6 +118,19 @@ app.post("/login", async (req, res) => {
       message: "Invalid email or password",
     });
   }
+});
+
+app.post("/logout", (req, res) => {
+  res.clearCookie("token", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+  });
+
+  return res.status(200).json({
+    message: "Logged out successfully",
+  });
 });
 
 app.post("/inquiries", async (req, res) => {
