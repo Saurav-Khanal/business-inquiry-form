@@ -1,11 +1,20 @@
-import React from 'react'
-import Dashboard from './components/dashboard'
-const App = () => {
+
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import Signup from "./components/signup";
+import Login from "./components/login";
+import Dashboard from "./components/dashboard";
+
+function App() {
   return (
-    <div>
-      <Dashboard/>
-    </div>
-  )
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route path="/signup" element={<Signup />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+      </Routes>
+    </BrowserRouter>
+  );
 }
 
-export default App
+export default App;

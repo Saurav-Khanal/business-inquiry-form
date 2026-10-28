@@ -5,13 +5,17 @@ const inquiry = require("./models/inquiry");
 const User = require("./models/User");
 app.use(express.json());
 const cors = require("cors");
-app.use(cors());
 require("dotenv").config();
 const mongoose = require("mongoose");
 const bcrypt = require("bcrypt");
 const jwt=require("jsonwebtoken");
 const cookieParser=require("cookie-parser");
+const authMiddleware=require("./middleware/authMiddleware");
 app.use(cookieParser());
+app.use(cors({
+  origin: "http://localhost:5173",
+  credentials: true,
+}));
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
@@ -42,9 +46,9 @@ app.post("/signup", async (req, res) => {
         message: "Email already registered",
       });
     }
-    if (password.length < 12) {
+    if (password.length < 4) {
       return res.status(400).json({
-        message: "The password length should be at least 12",
+        message: "The password length should be at least 4",
       });
     }
     const user = await User.create({
@@ -81,6 +85,7 @@ app.post("/login", async (req, res) => {
       });
     }
     const user = await User.findOne({ email });
+    console.log("LOGIN USER ID:", user._id.toString());
     if (!user) {
       return res.status(401).json({
         message: "Invalid email or password",
@@ -133,12 +138,13 @@ app.post("/logout", (req, res) => {
   });
 });
 
-app.post("/inquiries", async (req, res) => {
+app.post("/inquiries",authMiddleware,async (req, res) => {
   try {
     // 3. Receive name and message from req.body
     const createdInquires = await inquiry.create({
       name: req.body.name,
       message: req.body.message,
+      user:req.userId
     });
     res.status(201).json({
       message: "Inquiry created successfully",
@@ -151,9 +157,9 @@ app.post("/inquiries", async (req, res) => {
   }
 });
 
-app.get("/inquiries", async (req, res) => {
+app.get("/inquiries",authMiddleware, async (req, res) => {
   try {
-    const Allinquiry = await inquiry.find();
+    const Allinquiry = await inquiry.find({user:req.userId});
     res.status(200).json({
       Allinquiry: Allinquiry,
     });
