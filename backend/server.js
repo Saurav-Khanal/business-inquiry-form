@@ -8,14 +8,16 @@ const cors = require("cors");
 require("dotenv").config();
 const mongoose = require("mongoose");
 const bcrypt = require("bcrypt");
-const jwt=require("jsonwebtoken");
-const cookieParser=require("cookie-parser");
-const authMiddleware=require("./middleware/authMiddleware");
+const jwt = require("jsonwebtoken");
+const cookieParser = require("cookie-parser");
+const authMiddleware = require("./middleware/authMiddleware");
 app.use(cookieParser());
-app.use(cors({
-  origin: "http://localhost:5173",
-  credentials: true,
-}));
+app.use(
+  cors({
+    origin: "http://localhost:5173",
+    credentials: true,
+  }),
+);
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
@@ -32,7 +34,7 @@ app.get("/", (req, res) => {
   res.send("Your backend is running");
 });
 
-app.post("/signup", async (req, res) => {
+app.post("/signup", async (req, res, next) => {
   try {
     const { name, email, password } = req.body;
     if (!name || !email || !password) {
@@ -70,13 +72,11 @@ app.post("/signup", async (req, res) => {
       });
     }
 
-    return res.status(500).json({
-      message: "Internal server error",
-    });
+    next(err);
   }
 });
 
-app.post("/login", async (req, res) => {
+app.post("/login", async (req, res, next) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) {
@@ -85,12 +85,12 @@ app.post("/login", async (req, res) => {
       });
     }
     const user = await User.findOne({ email });
-    console.log("LOGIN USER ID:", user._id.toString());
     if (!user) {
       return res.status(401).json({
         message: "Invalid email or password",
       });
     }
+    console.log("LOGIN USER ID:", user._id.toString());
     const isPassword = await bcrypt.compare(password, user.password);
     if (!isPassword) {
       return res.status(401).json({
@@ -115,13 +115,11 @@ app.post("/login", async (req, res) => {
       user: {
         name: user.name,
         email: user.email,
-        token:token
+        token: token,
       },
     });
   } catch (err) {
-    res.status(500).json({
-      message: "Invalid email or password",
-    });
+    next(err);
   }
 });
 
@@ -138,34 +136,56 @@ app.post("/logout", (req, res) => {
   });
 });
 
-app.post("/inquiries",authMiddleware,async (req, res) => {
+app.post("/inquiries", authMiddleware, async (req, res, next) => {
   try {
-    // 3. Receive name and message from req.body
-    const createdInquires = await inquiry.create({
-      name: req.body.name,
-      message: req.body.message,
-      user:req.userId
+    
+    const { name, message } = req.body;
+    if (typeof name !== "string" || typeof message !== "string") {
+      return res.status(400).json({
+        message: "Name and message must be strings",
+      });
+    }
+    if (!name.trim() || !message.trim()) {
+      return res.status(400).json({
+        message: "Name and Message both field are required",
+      });
+    }
+    const createdInquiry = await inquiry.create({
+      name,
+      message,
+      user: req.userId,
     });
     res.status(201).json({
       message: "Inquiry created successfully",
-      inquiry: createdInquires,
+      inquiry: createdInquiry,
     });
-  } catch (error) {
-    res.status(500).json({
-      message: "failed to create inquiry",
-    });
+  } catch (err) {
+    next(err);
   }
 });
 
-app.get("/inquiries",authMiddleware, async (req, res) => {
+app.get("/inquiries", authMiddleware, async (req, res, next) => {
   try {
-    const Allinquiry = await inquiry.find({user:req.userId});
+    const Allinquiry = await inquiry.find({ user: req.userId });
     res.status(200).json({
       Allinquiry: Allinquiry,
     });
   } catch (err) {
-    res.status(500).json({
-      message: "failed to fetch queries",
-    });
+    next(err);
   }
+});
+
+app.use((err, req, res, next) => {
+  console.error(err);
+
+  if (err.name === "ValidationError") {
+    return res.status(400).json({
+      message: "Invalid data provided",
+    });
+    4;
+  }
+
+  return res.status(500).json({
+    message: "Something went wrong on the server",
+  });
 });
